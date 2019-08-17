@@ -1,0 +1,412 @@
+<html>
+<head>
+  <title>波波攒</title>
+  <meta charset='UTF-8'>
+  <meta name="viewport" content="width=device-width, initial-scale=1, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <link rel="stylesheet" type="text/css" href="reset.css">
+  <style>
+    @keyframes shake {
+      0%, 100% {
+        transform: translate(0, 0) rotate(0);
+      }
+      20% {
+        transform: translate(10px, -9px) rotate(3deg);
+      }
+      40% {
+        transform: translate(8px, 10px) rotate(0.5deg);
+      }
+      60% {
+        transform: translate(-12px, 11px) rotate(-2deg);
+      }
+      80% {
+        transform: translate(10px, 6px) rotate(2deg);
+      }
+    }
+    html {
+      font-size: 24px;
+      box-sizing: border-box;
+      display: flex;
+      justify-content: center;
+    }
+    hr {
+      margin: 40px 0;
+    }
+    p {
+      text-align: center;
+      padding: 11px;
+    }
+    .blur {
+      filter: blur(10px);
+    }
+    #danmu {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 11;
+      pointer-events: none;
+    }
+    .container {
+      width: 280px;
+    }
+    .overlay {
+      box-sizing: border-box;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10;
+      display: flex;
+      flex-flow: column;
+      justify-content: center;
+      align-items: center;
+    }
+    .shake {
+      animation-name: shake;
+      animation-duration: 100ms;
+      animation-timing-function: ease-in-out;
+      animation-iteration-count: 3;
+    }
+    .game {
+      margin-top: 40px;
+    }
+    button {
+      font-size: 24px;
+      line-height: 1em;
+      width: 100%;
+      margin-bottom: 20px;
+      padding: 7px;
+      background-color: #fff;
+      border-style: solid;
+      border-width: 4px;
+      outline: none;
+    }
+    button:active {
+    }
+    button:last-child {
+      margin-bottom: 0;
+    }
+    button.action {
+      border-color: darkseagreen;
+    }
+    button.action:disabled {
+      border-color: indianred;
+    }
+    button.reset {
+      border-color: darkgray;
+    }
+    .info {
+      margin: 20px 0;
+    }
+    .status {
+      font-size: 0;
+    }
+    .hp {
+      display: inline-block;
+      width: 30%;
+      height: 10px;
+      margin-right: 5%;
+      margin-bottom: 20px;
+      background-color: darkseagreen;
+    }
+    .hp:last-child {
+      margin-right: 0;
+    }
+    .charge {
+      display: inline-block;
+      width: 30%;
+      height: 10px;
+      margin-right: 5%;
+      margin-bottom: 20px;
+      background-color: burlywood;
+    }
+    .charge:last-child {
+      margin-right: 0;
+    }
+    .chat {
+      margin-top: 20px;
+      padding: 0;
+      font-size: 0;
+    }
+    button.msg {
+      border-color: burlywood;
+      width: 100%;
+    }
+    .history {
+      font-size: 0;
+      margin-top: 20px;
+    }
+    .history > * {
+      padding: 5px;
+    }
+    .history .opponent {
+      display: inline-block;
+      font-size: 20px;
+      width: 45%;
+      text-align: right;
+    }
+    .history .self {
+      display: inline-block;
+      font-size: 20px;
+      width: 45%;
+      text-align: left;
+    }
+    .history .separator {
+      display: inline-block;
+      font-size: 20px;
+      width: 10%;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <canvas id="danmu"></canvas>
+  <div class="overlay" v-show="overlay == 'chat'" v-on:click="overlay = null">
+    <div class="container">
+      <button class="msg" v-on:click="broadcast('打得不错')">打得不错</button>
+      <button class="msg" v-on:click="broadcast('我很抱歉')">我很抱歉</button>
+    </div>
+  </div>
+  <div class="game container" :class="{ blur: overlay, shake: shake }">
+    <div v-if="!ready">
+      <p>等待匹配</p>
+    </div>
+    <div v-else>
+      <div v-if="!finished">
+        <ul class="status" v-if="extended">
+          <li class="hp" v-if="opponent.hp >= 1"></li>
+          <li class="hp" v-if="opponent.hp >= 2"></li>
+          <li class="hp" v-if="opponent.hp >= 3"></li>
+        </ul>
+        <ul class="status">
+          <li class="charge" v-if="opponent.chargeNextRound >= 1"></li>
+          <li class="charge" v-if="opponent.chargeNextRound >= 2"></li>
+          <li class="charge" v-if="opponent.chargeNextRound >= 3"></li>
+        </ul>
+        <div v-if="opponent.action && self.action">
+          <button class="action" disabled>{{ actions[opponent.action] }}</button>
+        </div>
+        <p v-else>等待对手</p>
+        <hr>
+        <ul class="status" v-if="extended">
+          <li class="hp" v-if="self.hp >= 1"></li>
+          <li class="hp" v-if="self.hp >= 2"></li>
+          <li class="hp" v-if="self.hp >= 3"></li>
+        </ul>
+        <ul class="status">
+          <li class="charge" v-if="self.chargeNextRound >= 1"></li>
+          <li class="charge" v-if="self.chargeNextRound >= 2"></li>
+          <li class="charge" v-if="self.chargeNextRound >= 3"></li>
+        </ul>
+        <div v-if="opponent.action && self.action">
+          <button class="action" disabled>{{ actions[self.action] }}</button>
+        </div>
+        <div v-else>
+          <button class="action" v-if="self.charge >= 3" v-on:click="emit('ATK3')" :disabled="self.action == 'ATK3'">{{ actions['ATK3'] }}</button>
+          <button class="action" v-if="self.charge >= 1" v-on:click="emit('ATK')" :disabled="self.action == 'ATK'">{{ actions['ATK'] }}</button>
+          <button class="action" v-on:click="emit('SAVE')" :disabled="self.action == 'SAVE'">{{ actions['SAVE'] }}</button>
+          <button class="action" v-on:click="emit('BLOCK')" :disabled="self.action == 'BLOCK'">{{ actions['BLOCK'] }}</button>
+          <button class="action" v-if="extended && self.charge >= 1" v-on:click="emit('COUNTER')" :disabled="self.action == 'COUNTER'">{{ actions['COUNTER'] }}</button>
+        </div>
+      </div>
+      <div v-else>
+        <div class="info" v-if="self.hp <= 0">
+          <p>失败</p>
+        </div>
+        <div class="info" v-else>
+          <p>胜利</p>
+        </div>
+        <button class="reset" v-on:click="reset">重来</button>
+      </div>
+      <div class="chat">
+        <button class="msg" v-on:click="overlay = 'chat'">...</button>
+      </div>
+      <div class="history" v-if="history.length > 0">
+        <p><span class="opponent">对手</span><span class="separator">-</span><span class="self">自己</span></p>
+        <p v-for="h in history">
+        <span class="opponent">{{ h.opponent }}</span>
+        <span class="separator">-</span>
+        <span class="self">{{ h.self }}</span>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.5.22/vue.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.11/lodash.min.js"></script>
+<script src="danmu.js"></script>
+<script>
+var app = new Vue({
+  el: '#app',
+  data: {
+    socket: null,
+    ready: false,
+    finished: false,
+    overlay: null,
+    shake: false,
+    danmu: null,
+    history: [],
+    extended: true,
+    self: {
+      name: null,
+      action: null,
+      charge: 0,
+      hp: 1,
+      chargeNextRound: 0
+    },
+    opponent: {
+      name: null,
+      action: null,
+      charge: 0,
+      hp: 1,
+      chargeNextRound: 0
+    },
+    actions: {
+      'ATK3': 'Ex波',
+      'ATK': '波',
+      'SAVE': '攒',
+      'BLOCK': '防',
+      'COUNTER': '反'
+    }
+  },
+  mounted: function() {
+    this.danmu = new Danmu(document.getElementById('danmu'))
+    this.init()
+  },
+  destroyed: function() {
+    this.socket.disconnect()
+  },
+  methods: {
+    init: function() {
+      this.socket = new WebSocket("ws://localhost:13001/ws/bbz");
+      this.socket.onmessage = (message) => {
+        let data = JSON.parse(message.data)
+        console.log(data)
+        if (data.event == 'ready') {
+          this.ready = true
+          this.self.name = data.name
+          this.opponent.name = data.opponent
+          return
+        }
+        if (data.event == 'broadcast') {
+          this.danmu.fire(data.message)
+          return
+        }
+        if (data.event == 'sync') {
+          this.self.action = data[this.self.name]
+          this.opponent.action = data[this.opponent.name]
+          this.update()
+          let that = this
+          setTimeout(() => {
+            that.shake = false
+            that.self.action = null
+            that.self.charge = that.self.chargeNextRound
+            that.opponent.action = null
+            that.opponent.charge = that.opponent.chargeNextRound
+            if (that.self.hp <= 0 || that.opponent.hp <= 0) {
+              that.finished = true
+            }
+          }, 2000)
+          return
+        }
+      }
+      this.socket.onopen = (socket) => {
+        console.log('get ready')
+      }
+      this.socket.onclose = (message) => {
+        console.log('disconnected')
+        console.log('retrying')
+        this.ready = false
+        this.init()
+      }
+      this.reset()
+    },
+    emit: function(message) {
+      if (this.opponent.action) {
+          return
+      }
+      this.self.action = message
+      this.socket.send(JSON.stringify({'event': 'sync', 'data': message}))
+    },
+    broadcast: function(message) {
+      this.socket.send(JSON.stringify({'event': 'broadcast', 'data': message}))
+      this.overlay = false
+    },
+    reset: function() {
+      this.finished = false
+      this.self.charge = 0
+      this.opponent.charge = 0
+      this.self.chargeNextRound = 0
+      this.opponent.chargeNextRound = 0
+      this.self.action = null
+      this.opponent.action = null
+      this.self.hp = 1
+      this.opponent.hp = 1
+      if (this.extended) {
+        this.self.hp = 3
+        this.opponent.hp = 3
+      }
+      this.history = []
+    },
+    update: function() {
+      this.hit(this.self, this.opponent)
+      this.hit(this.opponent, this.self)
+      this.log()
+    },
+    hit: function(p1, p2) {
+      if (p1.action == 'ATK') {
+        this.shake = true
+        p1.chargeNextRound -= 1
+        if (p2.action == 'SAVE') {
+          p2.hp -= 1
+          return
+        }
+      }
+      if (p1.action == 'ATK3') {
+        this.shake = true
+        p1.chargeNextRound -= 3
+        if (p2.action == 'ATK' || p2.action == 'BLOCK') {
+          p2.hp -= 1
+          return
+        }
+        if (p2.action == 'SAVE') {
+          p2.hp -= 2
+          return
+        }
+      }
+      if (p1.action == 'SAVE') {
+        if (p1.chargeNextRound < 3) {
+          p1.chargeNextRound += 1
+        }
+        return
+      }
+      if (p1.action == 'COUNTER') {
+        p1.chargeNextRound -= 1
+        if (p2.action == 'ATK') {
+          p2.hp -= 1
+          return
+        }
+        if (p2.action == 'ATK3') {
+          p2.hp -= 2
+          return
+        }
+      }
+    },
+    log: function() {
+      opponent = this.actions[this.opponent.action]
+      if (this.opponent.chargeNextRound > 0) {
+        opponent += '(' + this.opponent.chargeNextRound + ')'
+      }
+      self = this.actions[this.self.action]
+      if (this.self.chargeNextRound > 0) {
+        self += '(' + this.self.chargeNextRound + ')'
+      }
+      this.history.push({'opponent': opponent, 'self': self})
+    }
+  }
+})
+</script>
+</body>
+</html>
